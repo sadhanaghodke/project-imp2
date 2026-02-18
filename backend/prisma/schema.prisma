@@ -1,0 +1,146 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CITIZEN
+  WORKER
+  ADMIN
+}
+
+enum ComplaintStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  phone     String?
+  role      UserRole @default(CITIZEN)
+  points    Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  complaints       Complaint[]       @relation("CitizenComplaints")
+  assignedTasks    WorkerAssignment[]
+  adminActions     AdminAction[]
+  feedbacks        Feedback[]
+  rewardHistory    RewardHistory[]
+
+  @@map("users")
+}
+
+model Complaint {
+  id          String          @id @default(cuid())
+  title       String
+  description String
+  imageUrl    String
+  imageHash   String          @unique
+  latitude    Float
+  longitude   Float
+  address     String?
+  status      ComplaintStatus @default(PENDING)
+  priority    Int             @default(1) // 1-5 scale
+  citizenId   String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  // Relations
+  citizen          User               @relation("CitizenComplaints", fields: [citizenId], references: [id])
+  workerAssignment WorkerAssignment?
+  adminActions     AdminAction[]
+  feedbacks        Feedback[]
+  beforeAfterImages BeforeAfterImage[]
+
+  @@map("complaints")
+}
+
+model WorkerAssignment {
+  id          String   @id @default(cuid())
+  complaintId String   @unique
+  workerId    String
+  assignedAt  DateTime @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  notes       String?
+
+  // Relations
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+  worker    User      @relation(fields: [workerId], references: [id])
+
+  @@map("worker_assignments")
+}
+
+model BeforeAfterImage {
+  id               String   @id @default(cuid())
+  complaintId      String
+  imageUrl         String
+  imageType        String   // 'before' or 'after'
+  uploadedByUserId String
+  uploadedAt       DateTime @default(now())
+
+  // Relations
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+
+  @@map("before_after_images")
+}
+
+model AdminAction {
+  id          String   @id @default(cuid())
+  complaintId String
+  adminId     String
+  action      String   // 'assigned', 'approved', 'rejected'
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+  admin     User      @relation(fields: [adminId], references: [id])
+
+  @@map("admin_actions")
+}
+
+model Feedback {
+  id          String @id @default(cuid())
+  complaintId String
+  citizenId   String
+  rating      Int    // 1-5 stars
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+  citizen   User      @relation(fields: [citizenId], references: [id])
+
+  @@map("feedbacks")
+}
+
+model RewardHistory {
+  id          String   @id @default(cuid())
+  userId      String
+  complaintId String?
+  points      Int
+  reason      String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("reward_history")
+}
